@@ -1,118 +1,91 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import axios from 'axios';
+import React, { useState } from 'react';
+import { Alert, Button, PermissionsAndroid, Platform, TextInput, View } from 'react-native';
+import RNFS from 'react-native-fs';
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+const VideoDownloader = () => {
+  const [url, setUrl] = useState('');
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
+  const requestStoragePermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
           {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+            title: 'Storage Permission',
+            message: 'App needs access to your storage to download videos',
+            buttonPositive: 'OK',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    } else {
+      return true;
+    }
+  };
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  const getApiEndpoint = (url) => {
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      return '/youtube';  // API endpoint for YouTube
+    } else if (url.includes('twitter.com')) {
+      return '/twitter';  // API endpoint for Twitter
+    } else if (url.includes('facebook.com')) {
+      return '/facebook';  // API endpoint for Facebook
+    } else if (url.includes('instagram.com')) {
+      return '/instagram';  // API endpoint for Instagram
+    } else {
+      return null;
+    }
+  };
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  const downloadVideo = async () => {
+    const hasPermission = await requestStoragePermission();
+    if (!hasPermission) {
+      Alert.alert('Permission Denied', 'You need to allow storage permission to download videos.');
+      return;
+    }
+
+    const endpoint = getApiEndpoint(url);
+
+    if (!endpoint) {
+      Alert.alert('Invalid URL', 'The URL is not recognized as a valid YouTube, Twitter, Facebook, or Instagram link.');
+      return;
+    }
+
+    try {
+      const response = await axios.post("https://zylalabs.com/api/3219/youtube+mp4+video+downloader+api/5880/get+mp4", {
+        urls: url,
+      });
+
+      const videoData = response.data.urls[0];
+      const downloadPath = `${Platform.OS === 'android' ? RNFS.ExternalDirectoryPath : RNFS.DocumentDirectoryPath}/video.mp4`;
+
+      const fileResponse = await axios.get(videoData.url, {
+        responseType: 'arraybuffer',
+      });
+
+      await RNFS.writeFile(downloadPath, fileResponse.data, 'utf8');
+      Alert.alert('Download complete!', `Video saved to ${downloadPath}`);
+    } catch (error) {
+      Alert.alert('Download failed', error.message);
+      console.log(error);
+    }
   };
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
+    <View style={{ padding: 20 }}>
+      <TextInput
+        style={{ borderColor: 'gray', borderWidth: 1, marginBottom: 10, padding: 5 }}
+        placeholder="Enter video URL"
+        value={url}
+        onChangeText={setUrl}
       />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      <Button title="Download Video" onPress={downloadVideo} />
+    </View>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
-
-export default App;
+export default VideoDownloader;
